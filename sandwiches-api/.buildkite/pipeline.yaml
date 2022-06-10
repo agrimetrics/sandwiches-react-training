@@ -1,0 +1,230 @@
+deploy_cmds2: &deploy_cmds2
+  - kubectl create namespace ${TMP_NAMESPACE}
+  - >
+      kubectl get secrets,configmaps -n api -o yaml
+      | sed -e "s/namespace: api/namespace: ${TMP_NAMESPACE}/"
+      | kubectl create -f -
+  - git clone --depth 1 git@github.com:agrimetrics/gitops-buildkite.git ${TMP_GITOPS_FOLDER}
+  - >
+      helm install --namespace=${TMP_NAMESPACE}
+      --wait --timeout=300
+      --values=\${VALUES_FILEPATH}
+      --set replicaCount=1
+      --set image.tag=${BUILDKITE_COMMIT}
+      --set ingress.annotations."nginx\.ingress\.kubernetes\.io/rewrite-target"='/\$1'
+      --set ingress.hostpaths[0].paths={"/${TMP_NAMESPACE}(\$)"\,"/${TMP_NAMESPACE}/(.*)"}
+      --name=sandwiches-${TMP_NAMESPACE}
+      agrimetricshelm/agrimetrics-api --version 1.1.2
+  - rm -rf ${TMP_GITOPS_FOLDER}
+deploy_cmds3: &deploy_cmds3
+  - kubectl create namespace ${TMP_NAMESPACE}
+  - >
+      kubectl get secrets,configmaps -n api -o yaml
+      | grep -vE '(creationTimestamp|resourceVersion|uid)'
+      | sed -e "s/namespace: api/namespace: ${TMP_NAMESPACE}/"
+      | kubectl apply -f -
+  - git clone --depth 1 git@github.com:agrimetrics/gitops-buildkite.git ${TMP_GITOPS_FOLDER}
+  - >
+      helm3 install --namespace=${TMP_NAMESPACE}
+      --wait --timeout=300s
+      --values=\${VALUES_FILEPATH}
+      --set replicaCount=1
+      --set image.tag=${BUILDKITE_COMMIT}
+      --set ingress.annotations."nginx\.ingress\.kubernetes\.io/rewrite-target"='/\$1'
+      --set ingress.hostpaths[0].paths={"/${TMP_NAMESPACE}(\$)"\,"/${TMP_NAMESPACE}/(.*)"}
+      sandwiches-${TMP_NAMESPACE}
+      agri/agrimetrics-api --version 2.0.0
+  - rm -rf ${TMP_GITOPS_FOLDER}
+
+env:
+  TMP_NAMESPACE: tmp-${BUILDKITE_PIPELINE_SLUG}-${BUILDKITE_BUILD_NUMBER}
+  TMP_GITOPS_FOLDER: /tmp/gitops-buildkite-${BUILDKITE_PIPELINE_SLUG}-${BUILDKITE_BUILD_NUMBER}
+
+steps:
+  - name: ':guardsman: audit dependencies'
+    command: npm audit --production
+    agents:
+      env: 'test'
+    soft_fail:
+      - exit_status: '*'
+
+  - name: ':docker: Build, Test and Release'
+    key: docker-build
+    command:
+      - npm run docker:build
+      - npm run docker:push
+    agents:
+      env: 'test'
+
+  - name: ':docker: Build integration test image'
+    key: docker-test-build
+    command:
+      - npm run docker:build-test
+      - npm run docker:push-test
+    agents:
+      env: test
+
+  - name: ':docker: run integration test'
+    key: test-integration-test
+    command:
+      - git clone --depth 1 git@github.com:agrimetrics/gitops-buildkite.git ${TMP_GITOPS_FOLDER}-int
+      - eval $(k8s_secrets -s get-env \${VALUES_FILEPATH})
+      - rm -rf ${TMP_GITOPS_FOLDER}-int
+      - >
+        docker run
+        -e EXAMPLE_ENVIRONMENT_VAR=S{EXAMPLE_ENVIRONMENT_VAR}
+        \${TEST_IMAGE} npm run test:integration
+    depends_on: "docker-test-build"
+    agents:
+      env: test
+    env:
+      VALUES_FILEPATH: ${TMP_GITOPS_FOLDER}-int/k8s-green-test/helm-releases/api/sandwiches-v1.yaml
+      TEST_IMAGE: docker-private.agrimetrics.co.uk/agrimetrics-sandwiches-api-test:${BUILDKITE_COMMIT}
+      K8S_CLUSTER: k8s-green-test
+
+  - name: ":kubernetes: Deploy service to temporary namespace for test"
+    key: test-smoke-deploy
+    command:
+      *deploy_cmds3
+    depends_on: "test-integration-test"
+    agents:
+      env: 'test'
+    env:
+      K8S_CLUSTER: k8s-green-test
+      VALUES_FILEPATH: ${TMP_GITOPS_FOLDER}/k8s-green-test/helm-releases/api/sandwiches-v1.yaml
+
+  - name: ':docker: run smoke test'
+    key: test-smoke-test
+    command:
+      - docker run -e BASE_URL=\${BASE_URL} \${TEST_IMAGE} npm run test:smoke
+    depends_on: "test-smoke-deploy"
+    agents:
+      env: test
+    env:
+      BASE_URL: "https://api-k8s-green-test.agrimetrics.co.uk/${TMP_NAMESPACE}"
+      TEST_IMAGE: docker-private.agrimetrics.co.uk/agrimetrics-sandwiches-api-test:${BUILDKITE_COMMIT}
+      K8S_CLUSTER: k8s-green-test
+
+  - name: "Collect logs"
+    key: "test-smoke-logs"
+    command:
+      - kubectl -n ${TMP_NAMESPACE} logs deployments/sandwiches-api-v1
+    depends_on: "test-smoke-test"
+    allow_dependency_failure: true
+    agents:
+      env: test
+    env:
+      K8S_CLUSTER: k8s-green-test
+
+  - name: "Teardown smoke deployment"
+    command:
+      - helm3 uninstall -n ${TMP_NAMESPACE} sandwiches-${TMP_NAMESPACE} || true
+      - kubectl delete namespace ${TMP_NAMESPACE}
+    depends_on:
+      - "test-smoke-deploy"
+      - "test-smoke-test"
+      - "test-smoke-logs"
+    allow_dependency_failure: true
+    agents:
+      env: test
+    env:
+      K8S_CLUSTER: k8s-green-test
+
+  - trigger: gitops-buildkite
+    label: ":kubernetes: Deploy in k8s-green-test."
+    key: "test-deploy"
+    depends_on:
+      - "test-smoke-test"
+      - "test-integration-test"
+    branches: master
+    build:
+      env:
+        DEPLOY_CONFIG_FILEPATH: "k8s-green-test/helm-releases/api/sandwiches-v1.yaml"
+        DOCKER_TAG: "${BUILDKITE_COMMIT}"
+
+  - name: "Update swagger for APIM in test"
+    command:
+      - apim_swagger_updater swagger.yaml --env test
+    depends_on: "test-deploy"
+    agents:
+      env: test
+
+  - name: ":kubernetes: Deploy service to temporary namespace for live"
+    key: live-smoke-deploy
+    branches:
+      - master
+    command:
+      *deploy_cmds3
+    depends_on: "test-smoke-test"
+    agents:
+      env: live
+    env:
+      K8S_CLUSTER: k8s-green-live
+      VALUES_FILEPATH: ${TMP_GITOPS_FOLDER}/k8s-green-live/helm-releases/api/sandwiches-v1.yaml
+
+  - name: ':docker: run smoke test'
+    key: "live-smoke-test"
+    branches:
+      - master
+    command:
+      - docker run -e BASE_URL=\${BASE_URL} \${TEST_IMAGE} npm run test:smoke
+    depends_on: "live-smoke-deploy"
+    agents:
+      env:  live
+    env:
+      BASE_URL: "https://api-k8s-green-live.agrimetrics.co.uk/${TMP_NAMESPACE}"
+      TEST_IMAGE: docker-private.agrimetrics.co.uk/agrimetrics-sandwiches-api-test:${BUILDKITE_COMMIT}
+      K8S_CLUSTER: k8s-green-live
+
+  - name: "Collect logs"
+    key: live-smoke-logs
+    branches:
+      - master
+    command:
+      - kubectl -n ${TMP_NAMESPACE} logs deployments/sandwiches-api-v1
+    depends_on: "live-smoke-test"
+    allow_dependency_failure: true
+    agents:
+      env: live
+    env:
+      K8S_CLUSTER: k8s-green-live
+
+  - name: "Teardown smoke deployment"
+    branches:
+      - master
+    command:
+      - helm3 uninstall -n ${TMP_NAMESPACE} sandwiches-${TMP_NAMESPACE} || true
+      - kubectl delete namespace ${TMP_NAMESPACE}
+    depends_on:
+      - "live-smoke-deploy"
+      - "live-smoke-test"
+      - "live-smoke-logs"
+    allow_dependency_failure: true
+    agents:
+      env: live
+    env:
+      K8S_CLUSTER: k8s-green-live
+
+  - block: "Release to live!"
+    depends_on:
+      - "test-deploy"
+      - "live-smoke-test"
+    branches:
+      - master
+
+  - trigger: gitops-buildkite
+    label: ":kubernetes: Deploy in k8s-green-live."
+    key: live-deploy
+    branches: master
+    build:
+      env:
+        DEPLOY_CONFIG_FILEPATH: "k8s-green-live/helm-releases/api/sandwiches-v1.yaml"
+        DOCKER_TAG: "${BUILDKITE_COMMIT}"
+
+  - name: "Update swagger for APIM in live"
+    command:
+      - apim_swagger_updater swagger.yaml --env live
+    depends_on: "live-deploy"
+    agents:
+      env: live
+    branches: master

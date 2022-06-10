@@ -1,0 +1,17 @@
+# npm
+node_modules
+# secrets!
+**/.env
+# IDEs
+.vscode
+.idea
+# macOs
+.DS_Store
+# asdf
+.tool-versions
+# temp files
+*~
+# build
+dist
+# default ignored files
+*.ignore

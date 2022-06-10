@@ -1,0 +1,6 @@
+{
+  "environment": {
+    "port": 8080
+  },
+  "logLevel": "info"
+}

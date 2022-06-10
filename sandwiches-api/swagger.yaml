@@ -1,0 +1,217 @@
+openapi: 3.0.1
+info:
+  title: sandwiches-api
+  description: >
+    Simple API for placing and checking sandwich orders.
+    Used in pairing sessions for front end interviews.
+  version: "1.0"
+servers:
+- url: https://api-test.agrimetrics.co.uk/sandwiches
+tags: []
+paths:
+  /status:
+    get:
+      summary: Checks the status for the API.
+      description: Checks the status for the API.
+      operationId: GetStatus
+      security:
+      - {}
+      - apiKeyQuery: []
+      responses:
+        200:
+          description: Status flag
+          content: {}
+          
+  /schedule:
+    get:
+      summary: Get the current task schedule.
+      description: Get the current task schedule.
+      operationId: GetSchedule
+      responses:
+        200:
+          description: The tasks that are scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schedule:
+                    type: array
+                    items:
+                      oneOf:
+                        - $ref: '#/components/schemas/makeTask'
+                        - $ref: '#/components/schemas/serveTask'
+                        - $ref: '#/components/schemas/breakTask'
+                required:
+                  - schedule
+                additionalProperties: false
+    delete:
+      summary: Clear the current task schedule.
+      description: Clear the current task schedule.
+      operationId: ClearSchedule
+      responses:
+        200:
+          description: The tasks that were scheduled have been removed
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /orders:
+    post:
+      summary: Submit a sandwich order.
+      description: Submit a sandwich order.
+      operationId: AddOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customer:
+                  $ref: '#/components/schemas/customer'
+                type:
+                  $ref: '#/components/schemas/sandwichGroup'
+              required:
+                - customer
+              additionalProperties: false       
+     
+      responses:
+        200:
+          description: The order has been scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/successOrFailure'
+
+        400:
+          description: The order has not been scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/successOrFailure'
+  
+  /inventory:
+    get:
+      summary: Get the sandwiches that can currently be made.
+      description: Get the sandwiches that can currently be made.
+      operationId: GetInventory
+      responses:
+        200:
+          description: The available sandwiches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inventory:
+                    $ref: '#/components/schemas/inventory'
+                required:
+                  - inventory
+                additionalProperties: false
+
+components:
+  securitySchemes:
+    apiKeyHeader:
+      type: apiKey
+      name: Ocp-Apim-Subscription-Key
+      in: header
+    apiKeyQuery:
+      type: apiKey
+      name: subscription-key
+      in: query
+
+  schemas:
+    successOrFailure:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+      additionalProperties: false
+
+    customer:
+      type: string
+
+    sandwich:
+      type: string
+
+    sandwichGroup:
+      oneOf:
+        - $ref: '#/components/schemas/sandwich'
+        - type: array
+          items:
+            $ref: '#/components/schemas/sandwich'
+
+    makeTask:
+      type: object
+      properties:
+        task:
+          type: string
+          enum:
+            - make
+        type:
+          $ref: '#/components/schemas/sandwich'
+        time:
+          type: integer
+        customer:
+          $ref: '#/components/schemas/customer'
+      required:
+        - task
+        - type
+        - time
+        - customer
+      additionalProperties: false
+
+    serveTask:
+      type: object
+      properties:
+        task:
+          type: string
+          enum:
+            - serve
+        type:
+          $ref: '#/components/schemas/sandwichGroup'
+        time:
+          type: integer
+        customer:
+          $ref: '#/components/schemas/customer'
+      required:
+        - task
+        - type
+        - time
+      additionalProperties: false
+
+    breakTask:
+      type: object
+      properties:
+        task:
+          type: string
+          enum:
+            - break
+        time:
+          type: integer
+      required:
+        - task
+        - time
+      additionalProperties: false
+
+    inventoryItem:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+      required:
+        - name
+        - count
+      additionalProperties: false
+
+    inventory:
+      type: array
+      items:
+        $ref: '#/components/schemas/inventoryItem'
+      

@@ -1,0 +1,245 @@
+{
+	"info": {
+		"_postman_id": "0af838b7-c912-4b1d-81e7-f609512c5656",
+		"name": "sandwiches-api",
+		"description": "TODO Describe sandwiches API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "schedule",
+			"item": [
+				{
+					"name": "Get the current task schedule.",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/schedule",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"schedule"
+							]
+						},
+						"description": "Get the current task schedule."
+					},
+					"response": [
+						{
+							"name": "The tasks that are scheduled",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/schedule",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"schedule"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n \"schedule\": [\n  {\n   \"task\": \"dolore voluptate ea anim\",\n   \"time\": 56277345,\n   \"customer\": \"laboris nulla velit et\"\n  },\n  {\n   \"task\": \"mollit exercitation ad anim occaecat\",\n   \"time\": 85859398,\n   \"customer\": \"voluptate in sunt\"\n  }\n ]\n}"
+						}
+					]
+				},
+				{
+					"name": "Clear the current task schedule.",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/schedule",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"schedule"
+							]
+						},
+						"description": "Clear the current task schedule."
+					},
+					"response": [
+						{
+							"name": "The tasks that were scheduled have been removed",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/schedule",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"schedule"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Checks the status for the API.",
+			"request": {
+				"auth": {
+					"type": "apikey",
+					"apikey": [
+						{
+							"key": "key",
+							"value": "subscription-key",
+							"type": "string"
+						},
+						{
+							"key": "value",
+							"value": true,
+							"type": "boolean"
+						},
+						{
+							"key": "in",
+							"value": "query",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/status",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"status"
+					]
+				},
+				"description": "Checks the status for the API."
+			},
+			"response": [
+				{
+					"name": "Status flag",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/status?subscription-key=<API Key>",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"status"
+							],
+							"query": [
+								{
+									"key": "subscription-key",
+									"value": "<API Key>"
+								}
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "text",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "text/plain"
+						}
+					],
+					"cookie": [],
+					"body": ""
+				}
+			]
+		},
+		{
+			"name": "Submit a sandwich order.",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer\": \"<string>\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/orders",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"orders"
+					]
+				},
+				"description": "Submit a sandwich order."
+			},
+			"response": [
+				{
+					"name": "The tasks that were scheduled have been removed",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"customer\": \"<string>\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/orders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{}"
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://api-test.agrimetrics.co.uk/sandwiches",
+			"type": "string"
+		}
+	]
+}
