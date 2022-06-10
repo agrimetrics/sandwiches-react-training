@@ -1,0 +1,3 @@
+[submodule "sandwiches-api"]
+	path = sandwiches-api
+	url = git@github.com:agrimetrics/sandwiches-api.git
